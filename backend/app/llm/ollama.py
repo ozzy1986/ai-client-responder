@@ -19,7 +19,7 @@ class OllamaClient:
         timeout_s: float = 180.0,
         temperature: float = 0.2,
         num_ctx: int = 4096,
-        keep_alive: str = "30m",
+        keep_alive: str = "5m",
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
