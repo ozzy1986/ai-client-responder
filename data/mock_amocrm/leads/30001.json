@@ -1,0 +1,47 @@
+{
+  "lead": {
+    "id": 30001,
+    "name": "Вопрос про оплату и график",
+    "price": 0,
+    "status_id": 142001,
+    "pipeline_id": 7001,
+    "responsible_user_id": 9001,
+    "created_at": 1790236400,
+    "_embedded": {
+      "contacts": [
+        {
+          "id": 5101,
+          "name": "Сергей",
+          "is_main": true
+        }
+      ],
+      "tags": [
+        {
+          "name": "чат"
+        }
+      ]
+    }
+  },
+  "messages": [
+    {
+      "id": "msg-30001-1",
+      "author": {
+        "type": "contact",
+        "id": 5101,
+        "name": "Сергей"
+      },
+      "text": "Добрый день! Подскажите, до скольки вы сегодня работаете? И можно ли оплатить заказ при получении?",
+      "created_at": 1790236400
+    }
+  ],
+  "_demo": {
+    "scenario": "Обычный вопрос клиента",
+    "expect": {
+      "needs_manager": false,
+      "reply_must_mention": [
+        "21:00",
+        "получении"
+      ]
+    }
+  }
+}

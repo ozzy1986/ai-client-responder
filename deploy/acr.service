@@ -1,0 +1,48 @@
+[Unit]
+Description=AI Client Responder (FastAPI/uvicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=acr
+Group=acr
+WorkingDirectory=/var/www/ai-client-responder/current/backend
+EnvironmentFile=/var/www/ai-client-responder/shared/.env
+Environment=ACR_ENV_FILE=/nonexistent PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# Домена нет — только localhost; снаружи доступ через SSH-туннель (-L 8102:127.0.0.1:8102).
+ExecStart=/var/www/ai-client-responder/current/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8102 --workers 1 --no-server-header --log-level info
+Restart=always
+RestartSec=3
+
+# Модель работает не здесь (Ollama на ноутбуке), приложению хватает немного памяти.
+MemoryHigh=150M
+MemoryMax=200M
+TasksMax=64
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target

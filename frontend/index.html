@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Client Responder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="brand-name">AI Client Responder</span>
+    <span class="brand-sub">O-complex · чат сделки amoCRM (mock)</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button id="tab-dialogs" class="tab" role="tab" data-tab="dialogs" aria-selected="true">Диалоги</button>
+    <button id="tab-kb" class="tab" role="tab" data-tab="kb" aria-selected="false">База знаний</button>
+    <button id="tab-history" class="tab" role="tab" data-tab="history" aria-selected="false">История</button>
+  </nav>
+  <div id="llm-status" class="status" title="Состояние LLM">
+    <span class="dot"></span><span class="status-text">проверяю LLM…</span>
+  </div>
+</header>
+
+<main>
+  <!-- Диалоги -->
+  <section id="panel-dialogs" class="panel">
+    <aside class="leads">
+      <h2 class="label">Сделки</h2>
+      <ul id="lead-list" class="lead-list"></ul>
+    </aside>
+
+    <section class="chat" aria-label="Переписка">
+      <div class="chat-head">
+        <div>
+          <h1 id="lead-title" class="chat-title">—</h1>
+          <p id="lead-meta" class="muted"></p>
+        </div>
+        <button id="toggle-raw" class="ghost small" type="button">JSON amoCRM</button>
+      </div>
+      <pre id="raw-json" class="raw" hidden></pre>
+      <ol id="messages" class="messages"></ol>
+      <form id="composer" class="composer">
+        <label for="composer-text" class="sr-only">Новое сообщение</label>
+        <textarea id="composer-text" rows="2" placeholder="Допишите реплику, чтобы проверить другой вопрос…"></textarea>
+        <div class="composer-actions">
+          <button id="add-client" class="ghost small" type="submit" data-author="client">+ от клиента</button>
+          <button id="add-manager" class="ghost small" type="button" data-author="manager">+ от менеджера</button>
+          <button id="reset-dialog" class="ghost small" type="button">Сбросить</button>
+        </div>
+      </form>
+      <button id="analyze" class="primary" type="button">Подготовить ответ и подсказку</button>
+    </section>
+
+    <section class="result" aria-live="polite">
+      <div id="result-empty" class="empty">
+        <p class="label">Результат</p>
+        <p>Выберите сделку и нажмите «Подготовить ответ». Модель прочитает переписку, найдёт статьи в базе знаний и вернёт два блока: ответ клиенту и подсказку менеджеру.</p>
+      </div>
+      <div id="result-loading" class="loading" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Модель думает… <span id="elapsed" class="mono">0 с</span></p>
+        <p class="muted small-text">Локальная 4B-модель: обычно 20–60 с, первый запрос дольше — модель загружается в память.</p>
+      </div>
+      <div id="result-error" class="error" hidden></div>
+      <div id="result" hidden>
+        <article class="card reply">
+          <header class="card-head">
+            <h2 class="label">Ответ клиенту</h2>
+            <button id="copy-reply" class="ghost small" type="button">Копировать</button>
+          </header>
+          <p id="r-reply" class="reply-text"></p>
+          <div id="r-flags" class="flags"></div>
+        </article>
+        <article class="card hint">
+          <header class="card-head">
+            <h2 class="label">Подсказка менеджеру <span class="internal">внутреннее · клиент не видит</span></h2>
+          </header>
+          <p id="r-hint" class="hint-text"></p>
+        </article>
+        <dl class="facts">
+          <div><dt>Чего хочет клиент</dt><dd id="r-intent"></dd></div>
+          <div><dt>Что уже сделал менеджер</dt><dd id="r-manager"></dd></div>
+          <div><dt>Статьи базы знаний</dt><dd id="r-kb" class="chips"></dd></div>
+        </dl>
+        <ul id="r-warnings" class="warnings"></ul>
+        <p id="r-meta" class="muted mono small-text"></p>
+      </div>
+    </section>
+  </section>
+
+  <!-- База знаний -->
+  <section id="panel-kb" class="panel single" hidden>
+    <div class="kb-layout">
+      <div class="kb-list-wrap">
+        <div class="row-between">
+          <h1 class="chat-title">База знаний</h1>
+          <button id="kb-new" class="ghost small" type="button">+ Статья</button>
+        </div>
+        <p class="muted">Единственный источник фактов для модели. В промпт попадают 4–7 статей, найденных полнотекстовым поиском PostgreSQL, и связанные товары для допродажи.</p>
+        <label for="kb-search" class="label">Проверить поиск</label>
+        <input id="kb-search" type="search" placeholder="Например: сколько доставка до Казани">
+        <p id="kb-search-result" class="muted small-text"></p>
+        <div class="table-wrap">
+          <table class="kb-table">
+            <thead><tr><th>Статья</th><th>Тип</th><th class="num">Цена</th></tr></thead>
+            <tbody id="kb-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <form id="kb-form" class="card kb-form" hidden>
+        <h2 id="kb-form-title" class="label">Статья</h2>
+        <label for="kb-title">Заголовок</label><input id="kb-title" required>
+        <div class="two">
+          <div><label for="kb-slug">Slug</label><input id="kb-slug" required pattern="[a-z0-9\-]{2,64}"></div>
+          <div><label for="kb-kind">Тип</label>
+            <select id="kb-kind"><option value="product">товар</option><option value="service">услуга</option><option value="policy">условия</option><option value="faq">FAQ</option><option value="company">компания</option></select></div>
+        </div>
+        <div class="two">
+          <div><label for="kb-price">Цена, ₽</label><input id="kb-price" type="number" min="0"></div>
+          <div><label for="kb-related">С чем предлагать (slug через запятую)</label><input id="kb-related"></div>
+        </div>
+        <label for="kb-keywords">Ключевые слова для поиска</label><input id="kb-keywords">
+        <label for="kb-content">Текст</label><textarea id="kb-content" rows="8" required></textarea>
+        <div class="row-between">
+          <button id="kb-delete" class="danger small" type="button">Удалить</button>
+          <span class="row-gap">
+            <button id="kb-cancel" class="ghost small" type="button">Отмена</button>
+            <button class="primary small" type="submit">Сохранить</button>
+          </span>
+        </div>
+        <p id="kb-form-msg" class="muted small-text"></p>
+      </form>
+    </div>
+  </section>
+
+  <!-- История -->
+  <section id="panel-history" class="panel single" hidden>
+    <h1 class="chat-title">История анализов</h1>
+    <p class="muted">Каждый запрос сохраняется в PostgreSQL (таблица analyses): диалог, ответ, модель, время.</p>
+    <div class="table-wrap">
+      <table class="kb-table">
+        <thead><tr><th>#</th><th>Сделка</th><th>Ответ клиенту</th><th>Подсказка</th><th>Модель</th><th class="num">Время</th></tr></thead>
+        <tbody id="history-rows"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
