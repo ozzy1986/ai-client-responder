@@ -100,3 +100,11 @@ def test_policy_detection_on_scenarios():
     for lead in ("30001", "30002", "30004"):
         s = policy.detect(crm.get_dialog(lead))
         assert not s.health and not s.complaint, lead
+
+
+def test_ollama_keep_alive_number_is_sent_as_number():
+    from app.llm.ollama import OllamaClient
+
+    assert OllamaClient("http://x", "m").keep_alive == -1
+    assert OllamaClient("http://x", "m", keep_alive="5m").keep_alive == "5m"
+    assert OllamaClient("http://x", "m", keep_alive="0").keep_alive == 0

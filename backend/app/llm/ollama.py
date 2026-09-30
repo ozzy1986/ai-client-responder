@@ -19,13 +19,15 @@ class OllamaClient:
         timeout_s: float = 180.0,
         temperature: float = 0.2,
         num_ctx: int = 4096,
-        keep_alive: str = "5m",
+        keep_alive: str = "-1",
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_s = timeout_s
         self.options = {"temperature": temperature, "num_ctx": num_ctx}
-        self.keep_alive = keep_alive
+        # Сколько Ollama держит модель в памяти после запроса: "-1" — не выгружать (первая загрузка
+        # занимает 1–2 минуты), "5m" — выгрузить через 5 минут простоя. Число Ollama ждёт числом.
+        self.keep_alive: str | int = int(keep_alive) if keep_alive.lstrip("-").isdigit() else keep_alive
 
     def generate_json(self, system: str, user: str, schema: dict[str, Any]) -> dict[str, Any]:
         payload = {

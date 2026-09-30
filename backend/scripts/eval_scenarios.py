@@ -61,7 +61,13 @@ def main() -> None:
 
     s = get_settings()
     model = args.model or s.llm_model
-    llm = OllamaClient(s.ollama_url, model, timeout_s=s.llm_timeout_s, temperature=s.llm_temperature)
+    llm = OllamaClient(
+        s.ollama_url,
+        model,
+        timeout_s=s.llm_timeout_s,
+        temperature=s.llm_temperature,
+        keep_alive=s.llm_keep_alive,
+    )
     svc = ResponderService(llm, PgKnowledgeBase(make_engine(s.database_url)))
     crm = MockAmoCRM(s.mock_crm_dir)
 

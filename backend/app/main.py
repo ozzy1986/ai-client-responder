@@ -38,7 +38,11 @@ async def lifespan(app: FastAPI):
     app.state.analyses = PgAnalysisLog(engine)
     app.state.crm = MockAmoCRM(s.mock_crm_dir)
     app.state.llm = OllamaClient(
-        s.ollama_url, s.llm_model, timeout_s=s.llm_timeout_s, temperature=s.llm_temperature
+        s.ollama_url,
+        s.llm_model,
+        timeout_s=s.llm_timeout_s,
+        temperature=s.llm_temperature,
+        keep_alive=s.llm_keep_alive,
     )
     app.state.responder = ResponderService(app.state.llm, app.state.kb, app.state.analyses)
     app.state.gate = AnalyzeGate(s.analyze_per_ip_per_hour)
