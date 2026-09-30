@@ -56,6 +56,9 @@ class OllamaClient:
             resp = httpx.post(f"{self.base_url}/api/chat", json=payload, timeout=self.timeout_s)
         if resp.status_code == 404:
             raise LLMError(f"модель {self.model} не найдена в Ollama (ollama pull {self.model})")
+        if resp.status_code >= 500:
+            # Например, разовый сбой CUDA при загрузке модели на видеокарту — повтор обычно проходит.
+            raise LLMError(f"Ollama вернула {resp.status_code}: {resp.text[:300]}", retryable=True)
         if resp.status_code >= 400:
             raise LLMError(f"Ollama вернула {resp.status_code}: {resp.text[:300]}")
 

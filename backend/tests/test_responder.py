@@ -108,3 +108,22 @@ def test_ollama_keep_alive_number_is_sent_as_number():
     assert OllamaClient("http://x", "m").keep_alive == -1
     assert OllamaClient("http://x", "m", keep_alive="5m").keep_alive == "5m"
     assert OllamaClient("http://x", "m", keep_alive="0").keep_alive == 0
+
+
+def test_ollama_5xx_is_retryable_4xx_is_not(monkeypatch):
+    import httpx
+
+    from app.llm.ollama import OllamaClient
+
+    def fake_post(status):
+        return lambda *a, **kw: httpx.Response(status, text='{"error":"llama-server process has terminated"}')
+
+    client = OllamaClient("http://x", "m")
+    monkeypatch.setattr(httpx, "post", fake_post(500))
+    with pytest.raises(LLMError) as e:
+        client.generate_json("s", "u", {})
+    assert e.value.retryable
+    monkeypatch.setattr(httpx, "post", fake_post(400))
+    with pytest.raises(LLMError) as e:
+        client.generate_json("s", "u", {})
+    assert not e.value.retryable
