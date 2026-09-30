@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     llm_model: str = "gemma3:4b"
     llm_timeout_s: float = 240.0
     llm_temperature: float = 0.2
+    analyze_per_ip_per_hour: int = 30
 
     crm_provider: str = "mock"
     mock_crm_dir: Path = ROOT / "data" / "mock_amocrm"

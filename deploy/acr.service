@@ -11,9 +11,11 @@ Group=acr
 WorkingDirectory=/var/www/ai-client-responder/current/backend
 EnvironmentFile=/var/www/ai-client-responder/shared/.env
 Environment=ACR_ENV_FILE=/nonexistent PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-# Домена нет — только localhost; снаружи доступ через SSH-туннель (-L 8102:127.0.0.1:8102).
+# Только localhost: снаружи — через Apache (ai-client-responder.ozzy1986.com). --proxy-headers даёт
+# реальный IP посетителя из X-Forwarded-For (нужен для лимита анализов с одного адреса).
 ExecStart=/var/www/ai-client-responder/current/venv/bin/uvicorn app.main:app \
-    --host 127.0.0.1 --port 8102 --workers 1 --no-server-header --log-level info
+    --host 127.0.0.1 --port 8102 --workers 1 --no-server-header --log-level info \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always
 RestartSec=3
 

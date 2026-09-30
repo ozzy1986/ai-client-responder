@@ -118,6 +118,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
 #result { display: flex; flex-direction: column; gap: 14px; }
 #result[hidden] { display: none; }
 
+.saved-note { font-size: 13px; padding: 8px 12px; border-radius: 8px; background: var(--surface-2); color: var(--muted); }
 .card { border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .card.reply { border: 1px solid var(--accent); }

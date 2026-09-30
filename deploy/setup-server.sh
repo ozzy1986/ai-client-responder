@@ -51,4 +51,37 @@ if [ -f "$ROOT/current/deploy/acr.service" ]; then
   systemctl daemon-reload
   systemctl enable acr >/dev/null 2>&1 || true
 fi
+
+# Пароль на изменение базы знаний (Basic Auth в Apache). Создаётся один раз; сам пароль лежит
+# только у root в shared/admin-password — владелец забирает его к себе в deploy/.env.
+HTPASSWD=/etc/apache2/acr.htpasswd
+if [ ! -f "$HTPASSWD" ]; then
+  ADMIN_PW=$(openssl rand -hex 12)
+  htpasswd -cbB "$HTPASSWD" admin "$ADMIN_PW" 2>/dev/null
+  chown root:www-data "$HTPASSWD" && chmod 640 "$HTPASSWD"
+  (umask 077; printf 'ACR_ADMIN_USER=admin\nACR_ADMIN_PASSWORD=%s\n' "$ADMIN_PW" > "$ROOT/shared/admin-password")
+  echo "created $HTPASSWD"
+fi
+
+# Apache: vhost-ы из текущего релиза, сертификат — если его ещё нет.
+DOMAIN=ai-client-responder.ozzy1986.com
+CUR=$ROOT/current/deploy
+if [ -f "$CUR/apache-$DOMAIN.conf" ]; then
+  mkdir -p "$ROOT/acme"
+  enable_site() {  # a2ensite не работает, если в sites-enabled лежит обычный файл, а не ссылка
+    local enabled="/etc/apache2/sites-enabled/$1.conf"
+    if [ -e "$enabled" ] && [ ! -L "$enabled" ]; then rm -f "$enabled"; fi
+    a2ensite -q "$1"
+  }
+  install -m 644 "$CUR/apache-$DOMAIN.conf" "/etc/apache2/sites-available/$DOMAIN.conf"
+  enable_site "$DOMAIN"
+  if ! certbot certificates 2>/dev/null | grep -q "Certificate Name: $DOMAIN"; then
+    apache2ctl configtest && systemctl reload apache2
+    certbot certonly --webroot -w "$ROOT/acme" -d "$DOMAIN" --non-interactive --agree-tos
+  fi
+  install -m 644 "$CUR/apache-$DOMAIN-le-ssl.conf" "/etc/apache2/sites-available/$DOMAIN-le-ssl.conf"
+  enable_site "$DOMAIN-le-ssl"
+  apache2ctl configtest
+  systemctl reload apache2
+fi
 echo "setup ok"

@@ -15,7 +15,9 @@ async function api(path, opts = {}) {
     const detail = Array.isArray(data.detail)
       ? data.detail.map((d) => `${d.loc?.slice(1).join(".")}: ${d.msg}`).join("\n")
       : data.detail;
-    throw new Error(detail || `HTTP ${res.status}`);
+    const err = new Error(detail || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }
@@ -48,18 +50,44 @@ async function checkStatus() {
   const box = $("#llm-status");
   try {
     const s = await api("/api/status");
-    const ok = s.llm_reachable && s.model_available;
-    box.className = `status ${ok ? "ok" : "bad"}`;
-    box.querySelector(".status-text").textContent = ok
-      ? `LLM: ${s.model}`
+    state.llmOk = s.llm_reachable && s.model_available;
+    box.className = `status ${state.llmOk ? "ok" : "bad"}`;
+    box.title = state.llmOk
+      ? "Модель запущена — ответы генерируются вживую"
+      : "Модель работает на ноутбуке автора и сейчас выключена. Показываются сохранённые ответы.";
+    box.querySelector(".status-text").textContent = state.llmOk
+      ? `LLM онлайн: ${s.model}`
       : s.llm_reachable
         ? `модель ${s.model} не скачана`
-        : "Ollama недоступна — туннель поднят?";
+        : "LLM офлайн — показываю сохранённые ответы";
   } catch {
+    state.llmOk = false;
     box.className = "status bad";
     box.querySelector(".status-text").textContent = "API недоступно";
   }
+  return state.llmOk;
 }
+
+/* Сохранённый ответ модели по сделке — когда модель выключена. */
+async function showSaved(reason) {
+  if (state.edited) {
+    $("#result-error").textContent = `${reason}\nДля отредактированного диалога сохранённого ответа нет — нажмите «Сбросить», чтобы увидеть сохранённый ответ по исходной переписке.`;
+    showResult("error");
+    return;
+  }
+  try {
+    const r = await api(`/api/leads/${state.leadId}/saved-analysis`);
+    renderResult(r);
+    const when = new Date(r.created_at).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" });
+    $("#r-saved").textContent = `${reason} Ниже — настоящий ответ ${r.model}, сохранённый ${when}.`;
+    $("#r-saved").hidden = false;
+    showResult("result");
+  } catch (e) {
+    $("#result-error").textContent = `${reason}\n${e.message}`;
+    showResult("error");
+  }
+}
+const OFFLINE = "Модель сейчас выключена: она работает на ноутбуке автора, а не на сервере.";
 
 /* ---------- сделки и диалог ---------- */
 async function loadLeads() {
@@ -90,6 +118,7 @@ async function selectLead(id) {
   $("#raw-json").textContent = JSON.stringify(raw, null, 2);
   renderMessages();
   showResult("empty");
+  if (state.llmOk === false) showSaved(OFFLINE);
 }
 
 function renderMessages() {
@@ -140,8 +169,13 @@ $("#analyze").addEventListener("click", async () => {
     renderResult(await api("/api/analyze", { method: "POST", body }));
     showResult("result");
   } catch (e) {
-    $("#result-error").textContent = e.message;
-    showResult("error");
+    if (e.status === 503) {
+      await checkStatus();
+      await showSaved(OFFLINE);
+    } else {
+      $("#result-error").textContent = e.message;
+      showResult("error");
+    }
   } finally {
     clearInterval(timer);
     btn.disabled = false;
@@ -150,6 +184,7 @@ $("#analyze").addEventListener("click", async () => {
 });
 
 function renderResult(r) {
+  $("#r-saved").hidden = true;
   $("#r-reply").textContent = r.customer_reply;
   $("#r-hint").textContent = r.upsell_hint || "Допродажу сейчас предлагать не стоит.";
   $("#r-intent").textContent = r.client_intent;
@@ -232,7 +267,8 @@ $("#kb-form").addEventListener("submit", async (e) => {
     editArticle(saved);
     $("#kb-form-msg").textContent = "Сохранено";
   } catch (err) {
-    $("#kb-form-msg").textContent = err.message;
+    $("#kb-form-msg").textContent =
+      err.status === 401 ? "Редактирование базы знаний на демо-сайте доступно только автору." : err.message;
   }
 });
 
@@ -246,9 +282,14 @@ $("#kb-delete").addEventListener("click", async () => {
   }
   deleteArmed = false;
   $("#kb-delete").textContent = "Удалить";
-  await api(`/api/kb/${state.kbEditing}`, { method: "DELETE" });
-  $("#kb-form").hidden = true;
-  loadKB();
+  try {
+    await api(`/api/kb/${state.kbEditing}`, { method: "DELETE" });
+    $("#kb-form").hidden = true;
+    loadKB();
+  } catch (err) {
+    $("#kb-form-msg").textContent =
+      err.status === 401 ? "Редактирование базы знаний на демо-сайте доступно только автору." : err.message;
+  }
 });
 
 let searchTimer = null;
@@ -282,7 +323,8 @@ async function loadHistory() {
 }
 
 /* ---------- старт ---------- */
-checkStatus();
-loadLeads().catch((e) => { $("#result-error").textContent = e.message; showResult("error"); });
+checkStatus()
+  .then(loadLeads)
+  .catch((e) => { $("#result-error").textContent = e.message; showResult("error"); });
 const initialTab = location.hash.slice(1);
 if (initialTab === "kb" || initialTab === "history") showTab(initialTab);

@@ -17,6 +17,7 @@ from app.crm.mock_amocrm import MockAmoCRM
 from app.domain import AnalysisResult, Dialog, KBArticle, KBArticleIn, Message
 from app.llm.ollama import OllamaClient
 from app.ports import LeadNotFound, LLMError
+from app.ratelimit import AnalyzeGate, ModelBusy, RateLimited
 from app.services.responder import NothingToAnswer, ResponderService
 from app.storage import ArticleExists, PgAnalysisLog, PgKnowledgeBase, make_engine
 
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
         s.ollama_url, s.llm_model, timeout_s=s.llm_timeout_s, temperature=s.llm_temperature
     )
     app.state.responder = ResponderService(app.state.llm, app.state.kb, app.state.analyses)
+    app.state.gate = AnalyzeGate(s.analyze_per_ip_per_hour)
     yield
     engine.dispose()
 
@@ -132,10 +134,37 @@ def analyze(body: AnalyzeRequest, request: Request) -> AnalysisResult:
         extra = Message(author="client", text=body.new_client_message.strip())
         dialog = dialog.model_copy(update={"messages": [*dialog.messages, extra]})
 
+    ip = request.client.host if request.client else "unknown"
     try:
-        return request.app.state.responder.analyze(dialog, source)
+        with request.app.state.gate.slot(ip):
+            return request.app.state.responder.analyze(dialog, source)
     except NothingToAnswer as e:
         raise HTTPException(409, f"нечего отвечать: {e}") from None
+    except ModelBusy:
+        raise HTTPException(429, "модель сейчас отвечает на другой запрос — повторите через минуту") from None
+    except RateLimited as e:
+        raise HTTPException(
+            429,
+            f"лимит анализов с одного адреса исчерпан — повторите через {e.retry_after_s // 60 + 1} мин",
+            headers={"Retry-After": str(e.retry_after_s)},
+        ) from None
+
+
+@app.get("/api/leads/{lead_id}/saved-analysis")
+def saved_analysis(lead_id: str, request: Request) -> dict[str, Any]:
+    """Последний настоящий ответ модели по сделке — показываем, когда модель выключена."""
+    row = request.app.state.analyses.latest_for_lead(lead_id)
+    if row is None:
+        raise HTTPException(404, "по этой сделке ещё нет сохранённого анализа")
+    return {
+        **row["result"],
+        "used_kb": request.app.state.kb.get_by_ids(row["kb_ids"]),
+        "analysis_id": row["id"],
+        "model": row["model"],
+        "latency_ms": row["latency_ms"],
+        "created_at": row["created_at"],
+        "saved": True,
+    }
 
 
 @app.get("/api/analyses")

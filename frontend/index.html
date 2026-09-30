@@ -59,6 +59,7 @@
       <div id="result-empty" class="empty">
         <p class="label">Результат</p>
         <p>Выберите сделку и нажмите «Подготовить ответ». Модель прочитает переписку, найдёт статьи в базе знаний и вернёт два блока: ответ клиенту и подсказку менеджеру.</p>
+        <p class="small-text">Модель (gemma3:4b через Ollama) работает на ноутбуке автора. Если он выключен, для демо-сделок показываются сохранённые настоящие ответы модели.</p>
       </div>
       <div id="result-loading" class="loading" hidden>
         <div class="spinner" aria-hidden="true"></div>
@@ -67,6 +68,7 @@
       </div>
       <div id="result-error" class="error" hidden></div>
       <div id="result" hidden>
+        <p id="r-saved" class="saved-note" hidden></p>
         <article class="card reply">
           <header class="card-head">
             <h2 class="label">Ответ клиенту</h2>

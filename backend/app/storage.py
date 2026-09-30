@@ -101,6 +101,12 @@ class PgKnowledgeBase:
             rows = {r.slug: _row(r) for r in c.execute(sql, {"slugs": slugs})}
         return [rows[s] for s in dict.fromkeys(slugs) if s in rows]
 
+    def get_by_ids(self, ids: list[int]) -> list[KBArticle]:
+        sql = text(f"SELECT {_COLUMNS} FROM kb_articles WHERE id = ANY(:ids)")
+        with self.engine.connect() as c:
+            rows = {r.id: _row(r) for r in c.execute(sql, {"ids": ids})}
+        return [rows[i] for i in ids if i in rows]
+
     # --- CRUD ---
 
     def list(self) -> list[KBArticle]:
@@ -218,6 +224,20 @@ class PgAnalysisLog:
         )
         with self.engine.connect() as c:
             return [dict(r._mapping) for r in c.execute(sql, {"limit": limit})]
+
+    def latest_for_lead(self, lead_id: str) -> dict[str, Any] | None:
+        """Последний анализ сделки в исходном виде из CRM (без правок в демо) — для показа,
+        когда модель недоступна."""
+        sql = text(
+            """
+            SELECT id, result, kb_ids, model, latency_ms, created_at
+            FROM analyses WHERE lead_id = :lead_id AND source = 'amocrm_mock'
+            ORDER BY id DESC LIMIT 1
+            """
+        )
+        with self.engine.connect() as c:
+            r = c.execute(sql, {"lead_id": lead_id}).first()
+        return dict(r._mapping) if r else None
 
     def ping(self) -> None:
         with self.engine.connect() as c:
