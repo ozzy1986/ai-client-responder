@@ -1,4 +1,4 @@
-# Локальный запуск на Windows: туннель к PostgreSQL на VPS + uvicorn с автоперезагрузкой.
+﻿# Локальный запуск на Windows: туннель к PostgreSQL на VPS + uvicorn с автоперезагрузкой.
 #   powershell -ExecutionPolicy Bypass -File scripts/dev.ps1
 # Ollama должна быть запущена локально (приложение Ollama или `ollama serve`).
 $ErrorActionPreference = "Stop"

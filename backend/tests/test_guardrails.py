@@ -96,3 +96,10 @@ def test_products_from_dialog_are_not_flagged(kb_articles):
     dialog = "В «Детокс 21» входят клетчатка O-Fiber, фиточай «Лёгкость», хлорофилл O-Green"
     _, warnings = guardrails.apply(ans, kb_articles, dialog_text=dialog)
     assert not any("не спрашивал" in w for w in warnings)
+
+
+def test_article_number_reference_is_leak_but_plain_word_is_not(kb_articles):
+    leak = LLMAnswer(**llm_answer(customer_reply="Согласно пункту 10, пришлите фото повреждения."))
+    ok = LLMAnswer(**llm_answer(customer_reply="Согласно пункту правил возврата, пришлите фото."))
+    assert any("пометк" in w for w in guardrails.apply(leak, kb_articles)[1])
+    assert not any("пометк" in w for w in guardrails.apply(ok, kb_articles)[1])

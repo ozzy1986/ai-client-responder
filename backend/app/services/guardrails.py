@@ -17,13 +17,14 @@ _PROMPT_TAG_RE = re.compile(
 )
 _KB_REF_RE = re.compile(r"\s*\[id=\d+\]")
 _FIELD_BLEED_RE = re.compile(r"upsell|manager_already|client_intent|used_kb", re.IGNORECASE)
+# «согласно пункту 10» — номер статьи из промпта; «пункт выдачи» и «пункт правил» — нормально.
+_ITEM_REF_RE = re.compile(r"(?:пункт|стать)\w*\s+№?\s*\d+")
 _LEAK_MARKERS = (
     "id=",
     "база знаний",
     "базе знаний",
     "нашей базы",
     "нашей базе",
-    "пункту ",  # «согласно пункту 10» — не путать с «пунктом выдачи»
     "допродаж",
     "подсказк",
     "upsell",
@@ -131,7 +132,7 @@ def apply(
         )
 
     lowered = answer.customer_reply.lower()
-    if any(marker in lowered for marker in _LEAK_MARKERS):
+    if any(marker in lowered for marker in _LEAK_MARKERS) or _ITEM_REF_RE.search(lowered):
         warnings.append("Ответ клиенту похож на внутреннюю пометку — перечитайте перед отправкой.")
 
     if not used and not needs_manager:
